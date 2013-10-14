@@ -6,18 +6,18 @@ PREFIX ?= /usr/local
 
 .PHONY: all
 
-all: fldev fldev.1 man.html
+all: fldev fldev.1 README.html
 
 fldev: fldev.o
 
 
-fldev.1: man.txt
-	a2x -f manpage man.txt
-	rm -f man.xml
+fldev.1: README.txt
+	a2x -f manpage README.txt
+	rm -f README.xml
 
-man.html: man.txt
-	a2x -f xhtml -d manpage man.txt
-	rm -f man.xml
+README.html: README.txt
+	a2x -f xhtml -d manpage README.txt
+	rm -f README.xml
 
 
 dist: distclean
@@ -26,10 +26,10 @@ test: fldev
 	./tests.sh
 
 clean distclean:
-	rm -f fldev fldev.o *~ man.xml
+	rm -f fldev fldev.o *~ README.xml
 
 maintainer-clean: clean
-	rm -f fldev.1 man.html man.xml
+	rm -f fldev.1 README.html README.xml
 
 
 install: fldev fldev.1
