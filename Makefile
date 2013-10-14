@@ -22,7 +22,8 @@ man.html: man.txt
 
 dist: distclean
 
-
+test: fldev
+	./tests.sh
 
 clean distclean:
 	rm -f fldev fldev.o *~ man.xml
