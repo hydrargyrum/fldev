@@ -14,33 +14,21 @@
 #define FUSE_USE_VERSION 25
 
 /* includes */
-#include <fuse.h>
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <sysexits.h>
 
+#include <fuse.h>
 #include <parted/parted.h>
 
-/* my macros */
-#define P_CHECK_EXIT(p) if(!p) {perror("parting");exit(127);}
-#define P_CHECK_EXIT2(P,MSG) if(!P) {perror(MSG);exit(127);}
+#define P_RETURN(P, MSG) do { int _errsave = errno; if (P) { perror(MSG); return _errsave; } } while (0)
+#define UNUSED __attribute__((unused))
 
 #define MIN(A,B) ((A) < (B) ? (A) : (B))
-
-/* prototypes */
-int fs_getattr(const char *path, struct stat *stbuf);
-int fs_read(const char *path, char *buffer, size_t number, off_t start, struct fuse_file_info *finfo);
-int fs_write(const char *path, const char *buffer, size_t number, off_t start, struct fuse_file_info *finfo);
-int fs_open(const char *path, struct fuse_file_info *finfo);
-int fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *info);
-int fs_chown(const char *path, uid_t uid, gid_t gid);
-int fs_chmod(const char *path, mode_t m);
-int fs_release(const char *path, struct fuse_file_info *finfo);
-void fs_destroy(void *p);
-
 
 /* new types */
 struct file {
@@ -55,46 +43,32 @@ struct dev_region {
 	int fd;
 };
 
-/* global variables */
-const char *optfile = NULL;
+/* globals */
+char *optfile = NULL;
 PedDevice *device;
 PedDisk *disk;
-
 struct stat root_stat;
+struct file *exposed;
+int exposed_count;
 
-struct file **exposed_files;
+/* helpers */
 
-struct fuse_operations fs_oper = {
-	.getattr = fs_getattr,
-	.open = fs_open,
-	.read = fs_read,
-	.write = fs_write,
-	.readdir = fs_readdir,
-	.chown = fs_chown,
-	.chmod = fs_chmod,
-	.release = fs_release,
-	.destroy = fs_destroy,
-};
-
-/* function definitions */
-inline int is_root(const char *path)
+int is_root(const char *path)
 {
-	return (path && strcmp(path, "/") == 0);
+	return (path && path[0] == '/' && path[1] == '\0');
 }
 
 struct file *lookup(const char *path)
 {
-	struct file **tries;
-
-	for (tries = exposed_files; *tries != 0; tries++) {
-		if (!strcmp(path, (*tries)->name))
-			return *tries;
+	for (int i = 0; i < exposed_count; i++) {
+		if (!strcmp(path, exposed[i].name))
+			return &exposed[i];
 	}
-
-	return 0;
+	return NULL;
 }
 
-int my_parse_fargs(void *data, const char *arg, int key, struct fuse_args *outargs)
+int fldev_parse(UNUSED void *data, const char *arg, int key,
+                UNUSED struct fuse_args *outargs)
 {
 	if (key == FUSE_OPT_KEY_NONOPT) {
 		if (!optfile) {
@@ -113,6 +87,8 @@ int my_parse_fargs(void *data, const char *arg, int key, struct fuse_args *outar
 	return 1;
 }
 
+/* operations */
+
 int fs_getattr(const char *path, struct stat *stbuf)
 {
 	if (is_root(path)) {
@@ -129,50 +105,46 @@ int fs_getattr(const char *path, struct stat *stbuf)
 	}
 }
 
-int fs_read(const char *path, char *buffer, size_t number, off_t start, struct fuse_file_info *finfo)
+int fs_read(UNUSED const char *path, char *buffer, size_t count,
+            off_t start, struct fuse_file_info *finfo)
 {
 	struct dev_region *region = (struct dev_region *) finfo->fh;
 	size_t total_read = 0;
 
-	number = MIN(number, region->length - start);
+	count = MIN(count, region->length - start);
 
-	lseek(region->fd, start + region->start, SEEK_SET);
-	while (number) {
+	P_RETURN(lseek(region->fd, start + region->start, SEEK_SET) < 0, "lseek");
+	while (count) {
 		/*rdc=pread(finfo->fh, buffer, number, (off_t) (start+ (rstr*PED_SECTOR_SIZE_DEFAULT)));*/
-		ssize_t block_read = read(region->fd, buffer, number);
-		if (block_read < 0) {
-			perror("read");
-			return -errno;
-		}
+		ssize_t block_read = read(region->fd, buffer, count);
+		P_RETURN(block_read < 0, "read");
 		if (!block_read)
 			break;
 
 		buffer += block_read;
 		total_read += block_read;
-		number -= block_read;
+		count -= block_read;
 	}
 
 	return total_read;
 }
 
-int fs_write(const char *path, const char *buffer, size_t number, off_t start, struct fuse_file_info *finfo)
+int fs_write(UNUSED const char *path, const char *buffer, size_t count,
+             off_t start, struct fuse_file_info *finfo)
 {
 	struct dev_region *region = (struct dev_region *) finfo->fh;
 	size_t total_written = 0;
 
-	number = MIN(number, region->length - start);
+	count = MIN(count, region->length - start);
 
-	lseek(region->fd, start + region->start, SEEK_SET);
-	while (number) {
-		ssize_t block_written = write(region->fd, buffer, number);
-		if (block_written < 0) {
-			perror("write");
-			return -errno;
-		}
+	P_RETURN(lseek(region->fd, start + region->start, SEEK_SET) < 0, "lseek");
+	while (count) {
+		ssize_t block_written = write(region->fd, buffer, count);
+		P_RETURN(block_written < 0, "write");
 
 		buffer += block_written;
 		total_written += block_written;
-		number -= block_written;
+		count -= block_written;
 	}
 
 	return total_written;
@@ -180,30 +152,23 @@ int fs_write(const char *path, const char *buffer, size_t number, off_t start, s
 
 int fs_open(const char *path, struct fuse_file_info *finfo)
 {
-	PedPartition *partition;
-	struct file *file;
-	int fd;
-
 	if (finfo->flags & (O_TRUNC | O_APPEND))
 		return -EPERM;
 
-	file = lookup(path);
+	struct file *file = lookup(path);
 	if (!file)
 		return -ENOENT;
-	partition = file->partition;
 
-	fd = open(optfile, finfo->flags);
-	if (fd < 0) {
-		perror("open");
-		return -errno;
-	}
+	int fd = open(optfile, finfo->flags);
+	P_RETURN(fd < 0, "open");
 
-	long long start = partition->geom.start * PED_SECTOR_SIZE_DEFAULT, end = partition->geom.end * PED_SECTOR_SIZE_DEFAULT;
-	long long length = partition->geom.length * PED_SECTOR_SIZE_DEFAULT;
+	PedPartition *partition = file->partition;
+	uint64_t start = partition->geom.start * PED_SECTOR_SIZE_DEFAULT;
+	uint64_t length = partition->geom.length * PED_SECTOR_SIZE_DEFAULT;
 
 	struct dev_region *f = malloc(sizeof(struct dev_region));
-	P_CHECK_EXIT2(f, "malloc");
-	finfo->fh = f;
+	P_RETURN(!f, "malloc");
+	finfo->fh = (uintptr_t) f;
 	f->start = start;
 	f->length = length;
 	f->fd = fd;
@@ -211,16 +176,25 @@ int fs_open(const char *path, struct fuse_file_info *finfo)
 	return 0;
 }
 
-int fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler, off_t offset, struct fuse_file_info *info)
+int fs_release(UNUSED const char *path, struct fuse_file_info *finfo)
+{
+	struct dev_region *region = (struct dev_region *) finfo->fh;
+
+	P_RETURN(close(region->fd) < 0, "close");
+
+	free(region);
+	return 0;
+}
+
+int fs_readdir(const char *path, void *buf, fuse_fill_dir_t filler,
+               UNUSED off_t offset, UNUSED struct fuse_file_info *info)
 {
 	if (is_root(path)) {
-		struct file **current_file;
-
 		filler(buf, ".", NULL, 0);
 		filler(buf, "..", NULL, 0);
 
-		for (current_file = exposed_files; *current_file; current_file++) {
-			filler(buf, (*current_file)->name + 1, NULL, 0);
+		for (int i = 0; i < exposed_count; i++) {
+			filler(buf, exposed[i].name + 1, NULL, 0);
 		}
 
 		return 0;
@@ -257,83 +231,83 @@ int fs_chmod(const char *path, mode_t m)
 	return 0;
 }
 
-int fs_release(const char *path, struct fuse_file_info *finfo)
-{
-	struct dev_region *region = (struct dev_region *) finfo->fh;
-	if (close(region->fd)) {
-		return -errno;
-	} else {
-		free(region);
-		return 0;
-	}
-}
-
-void fs_destroy(void *p)
+void fs_destroy(UNUSED void *p)
 {
 	ped_disk_destroy(disk);
 	ped_device_destroy(device);
 }
 
+struct fuse_operations fs_oper = {
+	.getattr = fs_getattr,
+	.open = fs_open,
+	.read = fs_read,
+	.write = fs_write,
+	.readdir = fs_readdir,
+	.chown = fs_chown,
+	.chmod = fs_chmod,
+	.release = fs_release,
+	.destroy = fs_destroy,
+};
+
+#define DEFAULT_DIR_MODE  S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH
+#define DEFAULT_FILE_MODE  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
+
 int main(int argc, char **argv)
 {
 	struct fuse_args fargs = FUSE_ARGS_INIT(argc, argv);
-	fuse_opt_parse(&fargs, NULL, NULL, my_parse_fargs);
+	int ret;
+
+	fuse_opt_parse(&fargs, NULL, NULL, &fldev_parse);
 
 	if (!optfile) {
-		printf("usage: %s <device> <mountpoint> [fuse_options]\n", argv[0]);
-		exit(1);
+		printf("usage: %s <device> <mountpoint> [fuse_options]\n",
+		       argv[0]);
+		return EX_USAGE;
 	}
 
 	device = ped_device_get(optfile);
-	P_CHECK_EXIT2(device, "ped_device_get");
+	if (!device) {
+		return EX_NOINPUT;
+	}
 	disk = ped_disk_new(device);
 	if (!disk) {
-		printf("could not read partition table, check the file %s\n", optfile);
-		exit(1);
+		return EX_DATAERR;
 	}
 
 	int partitions = ped_disk_get_last_partition_num(disk);
+	printf("partition table:\n");
 	ped_disk_print(disk);
 
-	exposed_files = calloc(partitions, sizeof(struct file *));
-	struct file **nfiles = exposed_files;
-
-	root_stat.st_mode = S_IFDIR | S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
+	root_stat.st_mode = S_IFDIR | DEFAULT_DIR_MODE;
 	root_stat.st_uid = getuid();
 	root_stat.st_gid = getgid();
 
-	int i;
-	PedPartition *current_partition;
-
-	for (i = 1; i <= partitions; i++) {
-		current_partition = ped_disk_get_partition(disk, i);
-		printf("%p\n", current_partition);
+	exposed = calloc(partitions, sizeof(struct file));
+	for (int i = 0; i < partitions; i++) {
+		PedPartition *current_partition = ped_disk_get_partition(disk, i + 1);
 		if (current_partition) {
-			char name[10];
-			/* check alloc */
-			*nfiles = malloc(sizeof(struct file));
-			(*nfiles)->stat.st_uid = getuid();
-			(*nfiles)->stat.st_gid = getgid();
-			(*nfiles)->stat.st_mode = S_IFREG | S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-			(*nfiles)->stat.st_size = current_partition->geom.length * PED_SECTOR_SIZE_DEFAULT;
-			/* TODO dir */
+			char *name;
+			exposed[exposed_count].stat.st_uid = getuid();
+			exposed[exposed_count].stat.st_gid = getgid();
+			exposed[exposed_count].stat.st_mode = S_IFREG | DEFAULT_FILE_MODE;
+			exposed[exposed_count].stat.st_size = current_partition->geom.length * PED_SECTOR_SIZE_DEFAULT;
 
-			sprintf(name, "/hda%d", i); /* snprintf ? */
+			P_RETURN(asprintf(&name, "/hda%d", i + 1) < 0, "asprintf");
 			/* TODO use another pattern? depending on label-type? */
 
-			(*nfiles)->name = strdup(name);
-			(*nfiles)->partition = current_partition;
-			nfiles++;
+			exposed[exposed_count].name = strdup(name);
+			exposed[exposed_count].partition = current_partition;
+			exposed_count++;
 		}
 	}
-	*nfiles = 0;
 
-	/* printf("int=%d long=%d ll=%d size_t=%d ssize_t=%d off_t=%d\n", sizeof(int), sizeof(long), sizeof(long long), sizeof(size_t), sizeof(ssize_t), sizeof(off_t)); */
+	ret = fuse_main(fargs.argc, fargs.argv, &fs_oper);
 
-	return fuse_main(fargs.argc, fargs.argv, &fs_oper);
+	/* cleanup */
+	free(optfile);
+	for (int i = 0; i < exposed_count; i++) {
+		free(exposed[i].name);
+	}
+	free(exposed);
+	return ret;
 }
-
-
-
-/*#define SSHFS_OPT(t, p, v) { t, offsetof(struct sshfs, p), v }*/
-
