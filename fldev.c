@@ -98,10 +98,15 @@ int my_parse_fargs(void *data, const char *arg, int key, struct fuse_args *outar
 {
 	if (key == FUSE_OPT_KEY_NONOPT) {
 		if (!optfile) {
-			/* take the full path, as the app could chdir() when backgrounding */
-			int length = strlen(get_current_dir_name()) + strlen(arg) + 2; /* \0 and / */
-			optfile = malloc(length);
-			snprintf(optfile, length, "%s/%s", get_current_dir_name(), arg);
+			if (arg[0] == '/') {
+				optfile = strdup(arg);
+			} else {
+				/* take the full path, as the app could chdir() when backgrounding */
+				const char *cur = get_current_dir_name();
+				if (asprintf(&optfile, "%s/%s", cur, arg) < 0) {
+					return -1;
+				}
+			}
 			return 0;
 		}
 	}
