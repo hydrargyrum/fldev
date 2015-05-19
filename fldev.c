@@ -76,10 +76,13 @@ int fldev_parse(UNUSED void *data, const char *arg, int key,
 				optfile = strdup(arg);
 			} else {
 				/* take the full path, as the app could chdir() when backgrounding */
-				const char *cur = get_current_dir_name();
+				char *cur = get_current_dir_name();
 				if (asprintf(&optfile, "%s/%s", cur, arg) < 0) {
+					perror("asprintf");
+					free(cur);
 					return -1;
 				}
+				free(cur);
 			}
 			return 0;
 		}
@@ -292,7 +295,11 @@ int main(int argc, char **argv)
 			exposed[exposed_count].stat.st_mode = S_IFREG | DEFAULT_FILE_MODE;
 			exposed[exposed_count].stat.st_size = current_partition->geom.length * PED_SECTOR_SIZE_DEFAULT;
 
-			P_RETURN(asprintf(&name, "/hda%d", i + 1) < 0, "asprintf");
+			if (asprintf(&name, "/hda%d", i + 1) < 0) {
+				perror("asprintf");
+				ret = EX_OSERR;
+				goto cleanup;
+			}
 			/* TODO use another pattern? depending on label-type? */
 
 			exposed[exposed_count].name = strdup(name);
@@ -304,6 +311,7 @@ int main(int argc, char **argv)
 	ret = fuse_main(fargs.argc, fargs.argv, &fs_oper);
 
 	/* cleanup */
+cleanup:
 	free(optfile);
 	for (int i = 0; i < exposed_count; i++) {
 		free(exposed[i].name);
