@@ -1,5 +1,5 @@
 
-CFLAGS = -Wall -W $(shell pkg-config --cflags fuse libparted) -std=c99
+CFLAGS = -Wall -W -Wno-unused -std=c99 $(shell pkg-config --cflags fuse libparted)
 LDFLAGS = $(shell pkg-config --libs fuse libparted)
 
 PREFIX ?= /usr/local
