@@ -16,6 +16,7 @@
 /* includes */
 #include <errno.h>
 #include <fcntl.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -42,8 +43,10 @@ struct dev_region {
 };
 
 /* globals */
-struct {
+struct g {
 	char *optfile;
+	char *prefix;
+	int prefix_allocated;
 	PedDevice *device;
 	PedDisk *disk;
 	struct stat root_stat;
@@ -268,14 +271,29 @@ struct fuse_operations fs_oper = {
 int main(int argc, char **argv)
 {
 	struct fuse_args fargs = FUSE_ARGS_INIT(argc, argv);
+	struct fuse_opt opts[] = {
+		{
+			.templ = "prefix=%s",
+			.offset = offsetof(struct g, prefix),
+		},
+		{
+			.templ = "prefix=",
+			.offset = offsetof(struct g, prefix_allocated),
+			.value = 1,
+		},
+		FUSE_OPT_END
+	};
 	int ret;
 
-	fuse_opt_parse(&fargs, NULL, NULL, &fldev_parse);
+	fuse_opt_parse(&fargs, &G, opts, &fldev_parse);
 
 	if (!G.optfile) {
 		printf("usage: %s <device> <mountpoint> [fuse_options]\n",
 		       argv[0]);
 		return EX_USAGE;
+	}
+	if (!G.prefix) {
+		G.prefix = "hda";
 	}
 
 	G.device = ped_device_get(G.optfile);
@@ -306,7 +324,7 @@ int main(int argc, char **argv)
 			file->stat.st_mode = S_IFREG | DEFAULT_FILE_MODE;
 			file->stat.st_size = current_partition->geom.length * PED_SECTOR_SIZE_DEFAULT;
 
-			if (asprintf(&file->name, "/hda%d", i + 1) < 0) {
+			if (asprintf(&file->name, "/%s%d", G.prefix, i + 1) < 0) {
 				perror("asprintf");
 				ret = EX_OSERR;
 				goto cleanup;
@@ -326,6 +344,8 @@ cleanup:
 	ped_device_destroy(G.device);
 
 	free(G.optfile);
+	if (G.prefix_allocated)
+		free(G.prefix);
 	for (int i = 0; i < G.exposed_count; i++) {
 		free(G.exposed[i].name);
 	}
