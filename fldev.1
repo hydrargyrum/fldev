@@ -2,12 +2,12 @@
 .\"     Title: fldev
 .\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 10/14/2013
+.\"      Date: 02/05/2016
 .\"    Manual: \ \&
 .\"    Source: \ \&
 .\"  Language: English
 .\"
-.TH "FLDEV" "1" "10/14/2013" "\ \&" "\ \&"
+.TH "FLDEV" "1" "02/05/2016" "\ \&" "\ \&"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -28,43 +28,66 @@
 .\" * MAIN CONTENT STARTS HERE *
 .\" -----------------------------------------------------------------
 .SH "NAME"
-fldev \- Present partitions from a disk image in a virtual file\-system\&.
+fldev \- Mount a disk image to access the contained partitions
 .SH "SYNOPSIS"
 .sp
 \fBfldev\fR [\-o \fIFUSEOPTS\fR] \fIDISKIMAGE\fR \fIMOUNTPOINT\fR
 .SH "DESCRIPTION"
 .sp
-FLDev loads a disk image named \fIDISKIMAGE\fR (with a partition table inside) and presents partitions found in it the same way Linux would do it under its /dev (at least for MSDOS format partition tables)\&. The \fIMOUNTPOINT\fR has to be an empty directory, and the partitions found in the disk image will be "virtual" files in the \fIMOUNTPOINT\fR directory\&.
+FLDev mounts a disk image file \fIDISKIMAGE\fR at \fIMOUNTPOINT\fR to present the partitions contained in \fIDISKIMAGE\fR\&. \fIDISKIMAGE\fR must contain a partition table\&.
 .sp
-For each partition, fldev will assign a number \fIN\fR, and show a file called "\fIhdaN\fR" under \fIMOUNTPOINT\fR\&. This file will be mapped (for reading and writing) to the corresponding part of \fIDISKIMAGE\fR\&.
+The partitions are exposed in the same fashion Linux would expose in /dev\&.
 .sp
-For MSDOS format partition tables, primary partitions will be numbered from 1 to 4, and logical partitions from 5 to above\&.
+For each partition, fldev will assign a number \fIX\fR, and show a file called "\fIhdaX\fR" under \fIMOUNTPOINT\fR\&. For MSDOS format partition tables, primary partitions will be numbered from 1 to 4, and logical partitions will start from 5\&.
+.sp
+Any read/write access to the partitions files accessible under \fIMOUNTPOINT\fR will be mapped to the corresponding region in the \fIDISKIMAGE\fR file\&.
+.sp
+File permissions of \fIDISKIMAGE\fR and the ones under \fIMOUNTPOINT\fR (which can be changed with chmod(1)) will be respected\&.
+.SH "OPTIONS"
+.sp
+FLDev supports all the standard FUSE options:
+.PP
+\fB\-f\fR
+.RS 4
+Run in foreground, do not daemonize\&.
+.RE
+.PP
+\fB\-d\fR
+.RS 4
+Run in foreground and print debug information\&.
+.RE
+.PP
+\fB\-s\fR
+.RS 4
+Run single\-threaded\&.
+.RE
+.PP
+\fB\-o\fR \fIOPTION1\fR=\fIVALUE1\fR,\fI\&...\fR
+.RS 4
+Pass additional options\&.
+.RE
+.sp
+FUSE supports a number of parameters to \fB\-o\fR, see \fIfuse\fR(8) for a description of them\&.
+.sp
+Additionally, FLDev supports these parameters to \fB\-o\fR:
+.PP
+\fBprefix\fR=\fINAME\fR
+.RS 4
+Name the exposed partitions with the prefix
+\fINAME\fR
+instead of "\fIhda\fR"\&.
+.RE
 .SH "EXAMPLE"
 .PP
-Mount the file \fImyimage\fR in a \fIparts\fR directory
+Mount the file image\&.raw\*(Aq in a \fImy_partitions\fR directory
 .RS 4
-fldev myimage parts
+fldev \-o prefix=sdc myimage\&.raw my_partitions
 .RE
-.SH "LIMITATIONS"
-.if n \{\
 .sp
-.\}
-.RS 4
-.it 1 an-trap
-.nr an-no-space-flag 1
-.nr an-break-flag 1
-.br
-.ps +1
-\fBImportant\fR
-.ps -1
-.br
-.sp
-No testing has been made for non\-MSDOS format partition tables\&.
-.sp .5v
-.RE
+Then, listing the \fImy_partitions\fR dir could give files \fIsdc1\fR, \fIsdc2\fR\&.
 .SH "LICENSE"
 .sp
 Both FLDev and this man page are licensed under the WTFPL\&.
 .SH "SEE ALSO"
 .sp
-parted(1), fusermount(1)
+\fIparted\fR(1), \fIfusermount\fR(1), \fIfuse\fR(8)
