@@ -336,7 +336,6 @@ int main(int argc, char **argv)
 				ret = EX_OSERR;
 				goto cleanup;
 			}
-			/* TODO use another pattern? depending on label-type? */
 
 			file->partition = current_partition;
 			G.exposed_count++;
