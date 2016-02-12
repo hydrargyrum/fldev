@@ -309,9 +309,15 @@ int main(int argc, char **argv)
 	printf("partition table:\n");
 	ped_disk_print(G.disk);
 
+	struct stat diskstat;
+	if (stat(G.optfile, &diskstat) < 0) {
+		perror("stat");
+		return EX_DATAERR;
+	}
+
 	G.root_stat.st_mode = S_IFDIR | DEFAULT_DIR_MODE;
-	G.root_stat.st_uid = getuid();
-	G.root_stat.st_gid = getgid();
+	G.root_stat.st_uid = diskstat.st_uid;
+	G.root_stat.st_gid = diskstat.st_gid;
 
 	G.exposed = calloc(partitions, sizeof(struct file));
 	for (int i = 0; i < partitions; i++) {
@@ -319,9 +325,10 @@ int main(int argc, char **argv)
 		struct file *file = &G.exposed[G.exposed_count];
 
 		if (current_partition) {
-			file->stat.st_uid = getuid();
-			file->stat.st_gid = getgid();
+			file->stat.st_uid = diskstat.st_uid;
+			file->stat.st_gid = diskstat.st_gid;
 			file->stat.st_mode = S_IFREG | DEFAULT_FILE_MODE;
+			file->stat.st_mode &= diskstat.st_mode;
 			file->stat.st_size = current_partition->geom.length * PED_SECTOR_SIZE_DEFAULT;
 
 			if (asprintf(&file->name, "/%s%d", G.prefix, i + 1) < 0) {

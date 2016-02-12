@@ -42,7 +42,7 @@ For each partition, fldev will assign a number \fIX\fR, and show a file called "
 .sp
 Any read/write access to the partitions files accessible under \fIMOUNTPOINT\fR will be mapped to the corresponding region in the \fIDISKIMAGE\fR file\&.
 .sp
-File permissions of \fIDISKIMAGE\fR and the ones under \fIMOUNTPOINT\fR (which can be changed with chmod(1)) will be respected\&.
+File permissions of \fIDISKIMAGE\fR are respected but permissions changes after mouting may not be reflected\&. File permissions under \fIMOUNTPOINT\fR can be changed with \fIchmod\fR(1) and will be respected\&.
 .SH "OPTIONS"
 .sp
 FLDev supports all the standard FUSE options:

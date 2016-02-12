@@ -22,7 +22,8 @@ For each partition, fldev will assign a number 'X', and show a file called "'hda
 
 Any read/write access to the partitions files accessible under 'MOUNTPOINT' will be mapped to the corresponding region in the 'DISKIMAGE' file.
 
-File permissions of 'DISKIMAGE' and the ones under 'MOUNTPOINT' (which can be changed with chmod(1)) will be respected.
+File permissions of 'DISKIMAGE' are respected but permissions changes after mouting may not be reflected.
+File permissions under 'MOUNTPOINT' can be changed with 'chmod'(1) and will be respected.
 
 OPTIONS
 -------
