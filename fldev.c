@@ -265,8 +265,8 @@ struct fuse_operations fs_oper = {
 	.chmod = fs_chmod,
 };
 
-#define DEFAULT_DIR_MODE  S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH
-#define DEFAULT_FILE_MODE  S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH
+#define DEFAULT_DIR_MODE  (S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH)
+#define DEFAULT_FILE_MODE  (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
 
 int main(int argc, char **argv)
 {
