@@ -1,0 +1,18 @@
+cache:
+    paths:
+        - "$CI_PROJECT_DIR/.apt"
+
+build:
+    image: docker.io/gcc
+    before_script:
+        - rm /etc/apt/apt.conf.d/docker-clean
+        - echo "Dir::Cache::Archives \"$CI_PROJECT_DIR/.apt\";" >> /etc/apt/apt.conf
+        - mkdir -p "$CI_PROJECT_DIR/.apt/partial"
+        - apt-get update && apt-get install -y --no-install-recommends libparted-dev libfuse-dev pkg-config
+    script:
+        - make fldev
+
+    artifacts:
+        paths:
+            - ./fldev
+        expire_in: "1 month"
