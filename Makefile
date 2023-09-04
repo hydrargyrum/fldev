@@ -9,6 +9,7 @@ PREFIX ?= /usr/local
 all: fldev fldev.1 README.html
 
 fldev: fldev.o
+	$(CC) $^ $(LDFLAGS) -o $@
 
 
 fldev.1: README.txt
