@@ -318,6 +318,9 @@ int main(int argc, char **argv)
 	G.root_stat.st_mode = S_IFDIR | DEFAULT_DIR_MODE;
 	G.root_stat.st_uid = diskstat.st_uid;
 	G.root_stat.st_gid = diskstat.st_gid;
+	G.root_stat.st_atime = diskstat.st_atime;
+	G.root_stat.st_ctime = diskstat.st_ctime;
+	G.root_stat.st_mtime = diskstat.st_mtime;
 
 	G.exposed = calloc(partitions, sizeof(struct file));
 	for (int i = 0; i < partitions; i++) {
@@ -327,6 +330,9 @@ int main(int argc, char **argv)
 		if (current_partition) {
 			file->stat.st_uid = diskstat.st_uid;
 			file->stat.st_gid = diskstat.st_gid;
+			file->stat.st_atime = diskstat.st_atime;
+			file->stat.st_ctime = diskstat.st_ctime;
+			file->stat.st_mtime = diskstat.st_mtime;
 			file->stat.st_mode = S_IFREG | DEFAULT_FILE_MODE;
 			file->stat.st_mode &= diskstat.st_mode;
 			file->stat.st_size = current_partition->geom.length * PED_SECTOR_SIZE_DEFAULT;
