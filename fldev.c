@@ -270,7 +270,7 @@ struct fuse_operations fs_oper = {
 
 int main(int argc, char **argv)
 {
-	struct fuse_args fargs = FUSE_ARGS_INIT(argc, argv);
+	struct fuse_args fargs = {0, NULL, 0};
 	struct fuse_opt opts[] = {
 		{
 			.templ = "prefix=%s",
@@ -283,8 +283,26 @@ int main(int argc, char **argv)
 		},
 		FUSE_OPT_END
 	};
+	char *fake_fsname = NULL;
 	int ret;
 
+	/* manually add regular arguments */
+	for (int i = 0; i < argc; i++) {
+		fuse_opt_add_arg(&fargs, argv[i]);
+	}
+
+	/* dummy parse to extract G.optfile from args */
+	fuse_opt_parse(&fargs, &G, opts, &fldev_parse);
+	if (asprintf(&fake_fsname, "-ofsname=%s", G.optfile) < 0) {
+		perror("asprintf");
+		ret = EX_OSERR;
+		goto cleanup;
+	}
+	/* detailed info in /etc/mtab, no other way than forging -o options */
+	fuse_opt_add_arg(&fargs, fake_fsname);
+	fuse_opt_add_arg(&fargs, "-osubtype=fldev");
+
+	/* real parse of real args + our forged -o options */
 	fuse_opt_parse(&fargs, &G, opts, &fldev_parse);
 
 	if (!G.optfile) {
@@ -362,5 +380,6 @@ cleanup:
 		free(G.exposed[i].name);
 	}
 	free(G.exposed);
+	free(fake_fsname);
 	return ret;
 }
