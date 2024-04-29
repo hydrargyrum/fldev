@@ -1,3 +1,7 @@
+variables:
+    RUNNER_GENERATE_ARTIFACTS_METADATA: "true"
+    SLSA_PROVENANCE_SCHEMA_VERSION: "v1"
+
 cache:
     paths:
         - "$CI_PROJECT_DIR/.apt"
